@@ -47,7 +47,8 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createServiceClient()
-  let patch: Record<string, unknown>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let patch: Record<string, any>
 
   if (action === 'approve') {
     patch = { reviewed_by_wife: true }
