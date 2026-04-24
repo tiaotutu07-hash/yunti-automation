@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import katex from 'katex'
-import { createClient } from '@/lib/supabase'
 import type { Problem } from '@/types/database.types'
 
 const DIFFICULTY: Record<number, string> = {
@@ -44,67 +43,58 @@ export default function ProblemCard({ problem, onApproved }: Props) {
   // 驳回表单
   const [rejectNotes, setRejectNotes] = useState('')
 
+  async function callApi(body: Record<string, unknown>) {
+    const res = await fetch('/api/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error ?? `HTTP ${res.status}`)
+    }
+  }
+
   // ── 直接通过 ──────────────────────────────────────────────────────────────
   async function approve() {
     setBusy(true)
-    const { error } = await createClient()
-      .from('problems')
-      .update({ reviewed_by_wife: true })
-      .eq('id', problem.id)
-    if (error) {
-      alert('操作失败：' + error.message)
+    try {
+      await callApi({ action: 'approve', id: problem.id })
+      onApproved(problem.id)
+    } catch (e) {
+      alert('操作失败：' + (e as Error).message)
       setBusy(false)
-      return
     }
-    onApproved(problem.id)
   }
 
   // ── 修改后通过 ────────────────────────────────────────────────────────────
   async function saveEdit() {
     setBusy(true)
-    const patch: Record<string, unknown> = { reviewed_by_wife: true }
-    if (editTag.trim())      patch.primary_tag    = editTag.trim()
-    if (editAnalysis.trim()) patch.brief_analysis = editAnalysis.trim()
-    if (editNotes.trim())    patch.wife_notes      = editNotes.trim()
-
-    const { error } = await createClient()
-      .from('problems')
-      .update(patch)
-      .eq('id', problem.id)
-    if (error) {
-      alert('操作失败：' + error.message)
+    try {
+      await callApi({
+        action:        'edit_and_approve',
+        id:            problem.id,
+        primary_tag:   editTag,
+        brief_analysis: editAnalysis,
+        wife_notes:    editNotes,
+      })
+      onApproved(problem.id)
+    } catch (e) {
+      alert('操作失败：' + (e as Error).message)
       setBusy(false)
-      return
     }
-    onApproved(problem.id)
   }
 
   // ── 驳回 ──────────────────────────────────────────────────────────────────
   async function confirmReject() {
     setBusy(true)
-    const patch: Record<string, unknown> = {
-      reviewed_by_wife: false,
-      primary_tag:      null,
-      method_tags:      null,
-      difficulty:       null,
-      novelty:          null,
-      typical_errors:   null,
-      brief_analysis:   null,
-      tagged_by:        null,
-      tagged_at:        null,
-    }
-    if (rejectNotes.trim()) patch.wife_notes = rejectNotes.trim()
-
-    const { error } = await createClient()
-      .from('problems')
-      .update(patch)
-      .eq('id', problem.id)
-    if (error) {
-      alert('操作失败：' + error.message)
+    try {
+      await callApi({ action: 'reject', id: problem.id, reject_notes: rejectNotes })
+      onApproved(problem.id)
+    } catch (e) {
+      alert('操作失败：' + (e as Error).message)
       setBusy(false)
-      return
     }
-    onApproved(problem.id)
   }
 
   // ── 渲染 ──────────────────────────────────────────────────────────────────
